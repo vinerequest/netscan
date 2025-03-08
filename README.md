@@ -1,79 +1,89 @@
-Network Scanner - ALL COMMANDS LISTED ARE BASH COMMANDS
-License: MIT Platform: Multi Python: 3.6+
+Network Scanner
 
-A powerful command-line tool for scanning local networks, discovering and identifying connected devices, monitoring network health, and tracking device information.
+A simple command-line tool to scan your local network, display all connected devices, and show their network health status, hostnames, MAC vendors, and more.
 
-Features
-Device Discovery: Automatically finds all devices on your local network using ARP scanning
-Network Health Monitoring: Checks latency and packet loss for all devices with ping tests
-Device Identification: Identifies device types based on:
-MAC address vendor lookup
-Open ports and services
-Hostname analysis
-Custom Device Labeling: Add persistent labels to devices for easier identification
-Port Scanning: Optional port scanning for more detailed device identification (requires nmap)
-Cross-Platform: Works on Windows, macOS, and Linux
+## System Requirements
+Before installing, ensure your system meets these requirements:
+- **Python**: Version 3.6 or higher (check with `python3 --version`)
+- **Root Privileges**: You’ll need to run commands with `sudo` on macOS/Linux or as Administrator on Windows
+- **Port Scanning (Optional)**: If you want to use port scanning, install `nmap`:
+  - macOS: `brew install nmap` (install Homebrew first if needed: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`)
+  - Linux: `sudo apt install nmap`
+  - Windows: Download and install from [nmap.org](https://nmap.org/download.html)
 
-System Requirements
-Python 3.6+: Required for running the scanner
-Root/Administrator Privileges: Required for network scanning operations
-Network Interface: Functioning network interface with IPv4 connectivity
-nmap (optional): For port scanning capabilities (automatically detected)
+## Installation
 
-Installation
-To install `netscan`, run the following command in your terminal:
+### Step 1: Clone the Repository
+First, download the project files from GitHub:
 ```bash
-sudo bash -c ""
+git clone https://github.com/vinerequest/netscan.git netscan
+cd netscan
+```
+- This creates a folder called `netscan` in your current directory and moves you into it.
+- If you don’t have `git` installed:
+  - macOS: Install with `xcode-select --install`
+  - Linux: Install with `sudo apt install git`
+  - Windows: Download from [git-scm.com](https://git-scm.com/download/win)
+
+### Step 2: Run the Installer
+Use the provided Python script to install `netscan` and its dependencies:
+```bash
+sudo python3 setup_netscan.py
+```
+- On macOS/Linux, use `sudo` to allow the script to install system-wide.
+- On Windows, open a Command Prompt as Administrator and run:
+  ```bash
+  python setup_netscan.py
+  ```
+- If you get an error about missing Python:
+  - macOS/Linux: Install with `brew install python3` (macOS) or `sudo apt install python3` (Linux)
+  - Windows: Download from [python.org](https://www.python.org/downloads/)
+
+## Usage
+Run the scanner to discover devices on your network:
+```bash
+sudo netscan
+```
+- On macOS/Linux, use `sudo`.
+- On Windows, run in a Command Prompt as Administrator.
+- This will display a table of devices, including IP addresses, MAC addresses, hostnames, vendors, and network health.
+
+## Command Line Options
+Customize your scan with these options:
+- `-n, --network CIDR`: Specify a network to scan (e.g., `192.168.1.0/24`)
+- `-p, --ports`: Enable port scanning (requires `nmap`)
+- `--deep-scan`: Perform a detailed port scan (slower)
+- `--no-health-check`: Skip health checks for faster scanning
+- `--label IP "LABEL"`: Add a custom label to a device (e.g., `sudo netscan --label 192.168.1.100 "My Laptop"`)
+- `--list-labels`: Show all saved labels
+
+For a full list, run:
+```bash
+sudo netscan --help
 ```
 
-Usage
-To run the network scanner, use the following command:
-
-sudo netscan
-
-This will scan your local network and display a table of connected devices, including their IP addresses, MAC addresses, hostnames, vendors, and network health status.
-Important: netscan requires root privileges to perform network scanning. Always run it with sudo.
-
-Command Line Arguments
-netscan supports several options to customize the scan:
-* -n, --network CIDR: Specify the network CIDR to scan (e.g., 192.168.1.0/24). If not provided, it defaults to your local network.
-* -p, --ports: Enable port scanning (requires nmap to be installed).
-* --deep-scan: Perform a more thorough port scan (slower but more detailed).
-* --no-health-check: Disable network health monitoring to speed up the scan.
-* --label IP "LABEL": Add a custom label for a device (e.g., sudo netscan --label 192.168.1.100 "My Laptop").
-* --list-labels: List all saved device labels.
-
-For a full list of options, run:
-
-sudo netscan --help
-
-Requirements
-* Python: Version 3.6 or higher.
-* Root Privileges: Required for network scanning (sudo).
-* Port Scanning: Requires nmap to be installed. On macOS, install it with:   
-MAC
-brew install nmap
-
-LINUX
-sudo apt install nmap
-
-Uninstall
-To remove netscan, run the following commands:
-
+## Uninstall
+To remove `netscan`:
+```bash
 sudo pip3 uninstall netscan
 sudo rm -rf ~/netscan
+```
+- On Windows, use `pip uninstall netscan` in an Administrator Command Prompt.
 
-About
-netscan is a simple tool to scan your local network and display connected devices with network health information. It uses Python libraries like scapy, python-nmap, and aiohttp to perform network discovery, device identification, and health checks.
+## About
+`netscan` is a tool to scan your local network and display connected devices with network health information. It uses Python libraries like `scapy`, `python-nmap`, and `aiohttp`.
 
-Troubleshooting
-* Permission Issues: Ensure you run netscan with sudo.
-* Missing Dependencies: The install script handles dependencies, but if issues arise, manually install them with:
+## Troubleshooting
+- **Permission Errors**: Ensure you use `sudo` (macOS/Linux) or run as Administrator (Windows).
+- **Missing `nmap`**: Install `nmap` for port scanning (see System Requirements).
+- **Missing Dependencies**: If the installer fails, install dependencies manually:
+  ```bash
+  sudo pip3 install scapy python-nmap netifaces mac-vendor-lookup tabulate aiofiles aiohttp ping3
+  ```
 
-sudo pip3 install -r ~/netscan/requirements.txt
+## Contributing
+Fork the repo on GitHub, make improvements, and submit a pull request. Report issues on the [GitHub Issues page](https://github.com/vinerequest/netscan/issues).
 
-* Port Scanning Errors: Install nmap if not already present (see Requirements)
-
-Contributing
-Feel free to fork the repository and submit pull requests for improvements or bug fixes. For major changes, please open an issue first to discuss.
+## License
+MIT License - see [LICENSE](LICENSE) for details.
 
