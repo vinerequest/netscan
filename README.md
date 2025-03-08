@@ -6,19 +6,28 @@ A command-line tool to scan your local network and display all connected devices
 
 Install with a single command:
 
-```bash
-sudo pip3 install -e /Users/addamhughes/netscan
-```
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/vinerequest/netscan/main/easy_netscan_install.sh)"
+text
+
+Collapse
+
+Wrap
+
+Copy
 
 ## Usage
 
 Run the scanner with sudo privileges:
-
-```bash
 sudo netscan
-```
+text
 
-### Command Line Arguments
+Collapse
+
+Wrap
+
+Copy
+
+## Command Line Arguments
 
 - `-n, --network`: Specify network CIDR to scan (e.g., 192.168.1.0/24)
 - `-p, --ports`: Enable port scanning (requires nmap)
@@ -28,12 +37,30 @@ sudo netscan
 - `--list-labels`: List all saved device labels
 
 For more options, run:
-```bash
 sudo netscan --help
-```
+text
+
+Collapse
+
+Wrap
+
+Copy
 
 ## Requirements
-
 - Python 3.6+
 - Root/sudo privileges for network scanning
-- For port scanning: nmap must be installed
+- For port scanning: `nmap` must be installed
+
+## Uninstall
+Remove the package:
+sudo pip3 uninstall netscan sudo rm -rf ~/netscan
+text
+
+Collapse
+
+Wrap
+
+Copy
+
+## About
+A simple tool to scan local network and display connected devices with network health info.
