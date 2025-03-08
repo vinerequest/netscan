@@ -1,66 +1,68 @@
-# Network Scanner
+# Network Scanner - ALL COMMANDS LISTED ARE BASH COMMANDS
 
 A command-line tool to scan your local network and display all connected devices. It shows network health status, identifies devices by hostname and MAC vendor, and provides port scanning capabilities.
 
 ## Installation
 
-Install with a single command:
-
+To install `netscan`, run the following command in your terminal:
+```bash
 sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/vinerequest/netscan/main/easy_netscan_install.sh)"
-text
 
-Collapse
 
-Wrap
 
-Copy
+Usage
+To run the network scanner, use the following command:
 
-## Usage
-
-Run the scanner with sudo privileges:
 sudo netscan
-text
 
-Collapse
 
-Wrap
+This will scan your local network and display a table of connected devices, including their IP addresses, MAC addresses, hostnames, vendors, and network health status.
+Important: netscan requires root privileges to perform network scanning. Always run it with sudo.
+Command Line Arguments
+netscan supports several options to customize the scan:
+* -n, --network CIDR: Specify the network CIDR to scan (e.g., 192.168.1.0/24). If not provided, it defaults to your local network.
+* -p, --ports: Enable port scanning (requires nmap to be installed).
+* --deep-scan: Perform a more thorough port scan (slower but more detailed).
+* --no-health-check: Disable network health monitoring to speed up the scan.
+* --label IP "LABEL": Add a custom label for a device (e.g., sudo netscan --label 192.168.1.100 "My Laptop").
+* --list-labels: List all saved device labels.
+For a full list of options, run:
 
-Copy
-
-## Command Line Arguments
-
-- `-n, --network`: Specify network CIDR to scan (e.g., 192.168.1.0/24)
-- `-p, --ports`: Enable port scanning (requires nmap)
-- `--deep-scan`: Perform a more thorough port scan
-- `--no-health-check`: Disable network health monitoring
-- `--label IP "LABEL"`: Add a custom label for a device
-- `--list-labels`: List all saved device labels
-
-For more options, run:
 sudo netscan --help
-text
 
-Collapse
 
-Wrap
+Requirements
+* Python: Version 3.6 or higher.
+* Root Privileges: Required for network scanning (sudo).
+* Port Scanning: Requires nmap to be installed. On macOS, install it with:   
+MAC
+brew install nmap
 
-Copy
+LINUX
+sudo apt install nmap
 
-## Requirements
-- Python 3.6+
-- Root/sudo privileges for network scanning
-- For port scanning: `nmap` must be installed
+Uninstall
+To remove netscan, run the following commands:
 
-## Uninstall
-Remove the package:
-sudo pip3 uninstall netscan sudo rm -rf ~/netscan
-text
+sudo pip3 uninstall netscan
+sudo rm -rf ~/netscan
 
-Collapse
 
-Wrap
+About
+netscan is a simple tool to scan your local network and display connected devices with network health information. It uses Python libraries like scapy, python-nmap, and aiohttp to perform network discovery, device identification, and health checks.
+Troubleshooting
+* Permission Issues: Ensure you run netscan with sudo.
+* Missing Dependencies: The install script handles dependencies, but if issues arise, manually install them with:
 
-Copy
 
-## About
-A simple tool to scan local network and display connected devices with network health info.
+sudo pip3 install -r ~/netscan/requirements.txt
+
+* Port Scanning Errors: Install nmap if not already present (see Requirements)
+
+
+Contributing
+Feel free to fork the repository and submit pull requests for improvements or bug fixes. For major changes, please open an issue first to discuss.
+
+
+
+
