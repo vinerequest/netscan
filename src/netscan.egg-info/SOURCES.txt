@@ -1,0 +1,8 @@
+README.md
+setup.py
+src/netscan.egg-info/PKG-INFO
+src/netscan.egg-info/SOURCES.txt
+src/netscan.egg-info/dependency_links.txt
+src/netscan.egg-info/entry_points.txt
+src/netscan.egg-info/requires.txt
+src/netscan.egg-info/top_level.txt
