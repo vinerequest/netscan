@@ -1,4 +1,4 @@
-# Network Scanner
+# Network Scanner - ALL COMMANDS LISTED ARE BASH COMMANDS
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Platform: Multi](https://img.shields.io/badge/platform-Windows%20|%20macOS%20|%20Linux-brightgreen)
@@ -27,6 +27,7 @@ A powerful command-line tool for scanning local networks, discovering and identi
 
 ## Installation
 
+<<<<<<< HEAD
 ### Option 1: Quick Install (Recommended)
 
 ```bash
@@ -107,103 +108,31 @@ sudo netscan --remove-label 192.168.1.10
 Run the following command to see all available options:
 
 ```bash
+=======
+To install `netscan`, run the following command in your terminal:
+```bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/vinerequest/netscan/main/easy_netscan_install.sh)"
+
+
+
+Usage
+To run the network scanner, use the following command:
+
+sudo netscan
+
+
+This will scan your local network and display a table of connected devices, including their IP addresses, MAC addresses, hostnames, vendors, and network health status.
+Important: netscan requires root privileges to perform network scanning. Always run it with sudo.
+Command Line Arguments
+netscan supports several options to customize the scan:
+* -n, --network CIDR: Specify the network CIDR to scan (e.g., 192.168.1.0/24). If not provided, it defaults to your local network.
+* -p, --ports: Enable port scanning (requires nmap to be installed).
+* --deep-scan: Perform a more thorough port scan (slower but more detailed).
+* --no-health-check: Disable network health monitoring to speed up the scan.
+* --label IP "LABEL": Add a custom label for a device (e.g., sudo netscan --label 192.168.1.100 "My Laptop").
+* --list-labels: List all saved device labels.
+For a full list of options, run:
+
+>>>>>>> e30008d566f141646eaaff568bc52f5fa99b4d14
 sudo netscan --help
-```
-
-## Example Output
-
-```
-========== NETWORK SCANNER ==========
-Interface: en0
-IP Address: 192.168.1.100
-Network CIDR: 192.168.1.0/24
-Default Gateway: 192.168.1.1
-=====================================
-
-Scanning network 192.168.1.0/24
-Scan complete!       
-Checking network health...
-Identifying devices...
-
-+---------------------+-------------------+------------------------+-------------------------+------------------------+---------------------+-------------------------+
-|      IP Address     |    MAC Address    |        Hostname        |          Vendor         |       Device Type      |        Health       |          Ports          |
-+---------------------+-------------------+------------------------+-------------------------+------------------------+---------------------+-------------------------+
-| 192.168.1.1 (Gateway) | e4:8d:8c:xx:xx:xx |        router         |     Routerboard.com     |         Router         | Good (1.2ms, 0% loss) | 53, 80, 443            |
-|     192.168.1.10    | 11:22:33:xx:xx:xx |        printer        |      HP Enterprise      | Printer (Office Printer) | Fair (72.5ms, 0% loss) | 9100, 631, 80           |
-|     192.168.1.100   | aa:bb:cc:xx:xx:xx |       MacBook         |       Apple, Inc.       |      Workstation       | Good (0.3ms, 0% loss) | 22, 5000                |
-+---------------------+-------------------+------------------------+-------------------------+------------------------+---------------------+-------------------------+
-
-Total devices: 3
-
-Tips:
-• Install nmap to enable port scanning: brew install nmap (macOS) or apt install nmap (Linux)
-• Label devices with: sudo netscan --label 192.168.1.x "My Device"
-• View all labels with: sudo netscan --list-labels
-• Health statuses: Good (< 50ms, 0% loss), Fair (50-100ms, < 10% loss), Poor (> 100ms or > 10% loss)
-• Run with --no-health-check for faster scanning
-```
-
-## Interpreting Results
-
-- **IP Address**: Device's IPv4 address on the network (the gateway is highlighted)
-- **MAC Address**: Device's physical hardware address
-- **Hostname**: Device's hostname (if available)
-- **Vendor**: Manufacturer determined from the MAC address
-- **Device Type**: Type of device determined from ports, vendor, and hostname
-  - Labels appear in parentheses next to the device type
-- **Health**: Network health status with latency and packet loss:
-  - Good: < 50ms with 0% loss (optimal)
-  - Fair: 50-100ms with < 10% loss (acceptable)
-  - Poor: > 100ms or > 10% loss (problematic)
-  - Offline: Device not responding to pings
-- **Ports**: Open ports detected on the device (if port scanning is enabled)
-
-## Troubleshooting
-
-### Common Issues
-
-#### "Permission denied" or "Access is denied"
-- **Problem**: Network scanning requires administrative privileges
-- **Solution**: Run with `sudo` on macOS/Linux or as Administrator on Windows
-
-#### "No devices found"
-- **Problem**: The scanner couldn't detect any devices
-- **Solutions**:
-  - Check network connectivity
-  - Try specifying the correct network with `-n 192.168.x.0/24`
-  - Verify your network interface is active
-
-#### "nmap not available"
-- **Problem**: Port scanning requires nmap
-- **Solution**: Install nmap
-  - macOS: `brew install nmap`
-  - Ubuntu/Debian: `sudo apt install nmap`
-  - Windows: Download from [nmap.org](https://nmap.org/download.html)
-
-#### "Error getting network information"
-- **Problem**: The scanner couldn't determine network settings
-- **Solution**: Manually specify your network:
-  ```bash
-  sudo netscan -n 192.168.1.0/24 -i eth0
-  ```
-
-## Security Considerations
-
-- This tool performs active network scanning which should only be used on networks you own or have permission to scan
-- Root/administrator privileges are required but care has been taken to minimize security risks
-- All user inputs are validated and sanitized to prevent command injection
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Dependencies
-
-- **scapy**: Network packet manipulation
-- **python-nmap**: Port scanning interface (requires nmap binary)
-- **netifaces**: Network interface information
-- **mac-vendor-lookup**: MAC address vendor lookup
-- **tabulate**: Terminal table formatting
-- **ping3**: ICMP ping functionality
-
-**Note: nmap must be installed separately as it is a binary program, not a Python package.**
+ 
