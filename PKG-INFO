@@ -1,0 +1,37 @@
+Metadata-Version: 2.1
+Name: netscan
+Version: 0.1.0
+Summary: Network Scanner - Discover, identify, and monitor devices on your network
+Home-page: https://github.com/digitaldropkick/netscan
+Author: Digital Dropkick, LLC
+Author-email: info@digitaldropkick.com
+License: MIT
+Platform: UNKNOWN
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: System Administrators
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Topic :: System :: Networking
+Classifier: Topic :: System :: Systems Administration
+Classifier: Topic :: Utilities
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+
+# Network Scanner
+
+A command-line tool to scan your local network, discover connected devices, check network health, and identify device types.
+
+## Features
+
+- **Network Discovery**: Automatically finds all devices on your local network using ARP scanning
+- **Device Identification**: Identifies device types based on MAC address vendor, open ports, and hostname
+- **Network Health Monitoring**: Checks latency and packet loss for all devices
+- **Custom Device Labeling**: Add persistent labels to devices for easier identification
+- **Port Scanning**: Optional port scanning to help identify device types (requires nmap)
