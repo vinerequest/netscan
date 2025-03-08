@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}Network Devices - NetScan Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Network Devices</h5>
+                <a href="/" class="btn btn-sm btn-outline-primary">Back to Dashboard</a>
+            </div>
+            <div class="card-body">
+                {% if devices %}
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="deviceSearch" placeholder="Search devices...">
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table table-hover" id="deviceTable">
+                        <thead>
+                            <tr>
+                                <th>IP Address</th>
+                                <th>MAC Address</th>
+                                <th>Hostname</th>
+                                <th>Device Type</th>
+                                <th>Vendor</th>
+                                <th>Status</th>
+                                <th>Label</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for device in devices %}
+                            <tr>
+                                <td>{{ device.ip }}</td>
+                                <td>{{ device.mac }}</td>
+                                <td>{{ device.hostname|default('Unknown', true) }}</td>
+                                <td>{{ device.device_type|default('Unknown', true) }}</td>
+                                <td>{{ device.vendor|default('Unknown', true) }}</td>
+                                <td>
+                                    {% if device.health == 'healthy' %}
+                                    <span class="status-healthy"><i class="bi bi-check-circle"></i> Healthy</span>
+                                    {% elif device.health == 'unhealthy' %}
+                                    <span class="status-unhealthy"><i class="bi bi-exclamation-triangle"></i> Unhealthy</span>
+                                    {% else %}
+                                    <span class="status-unknown"><i class="bi bi-question-circle"></i> Unknown</span>
+                                    {% endif %}
+                                    
+                                    {% if device.is_gateway %}
+                                    <span class="badge bg-info gateway-badge">Gateway</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if device.label %}
+                                    {{ device.label }}
+                                    {% else %}
+                                    <span class="text-muted">No label</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="/device/{{ device.ip }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-info-circle"></i>
+                                    </a>
+                                    <a href="/port-scan/{{ device.ip }}" class="btn btn-sm btn-outline-secondary">
+                                        <i class="bi bi-hdd-network"></i>
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-success" 
+                                           data-bs-toggle="modal" 
+                                           data-bs-target="#labelModal" 
+                                           data-ip="{{ device.ip }}"
+                                           data-current-label="{{ device.label|default('', true) }}">
+                                        <i class="bi bi-tag"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Label Modal -->
+                <div class="modal fade" id="labelModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Device Label</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="labelForm" action="/update-label" method="post">
+                                    <input type="hidden" id="deviceIp" name="ip">
+                                    <div class="mb-3">
+                                        <label for="deviceLabel" class="form-label">Label</label>
+                                        <input type="text" class="form-control" id="deviceLabel" name="label">
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-danger" id="removeLabel">Remove Label</button>
+                                <button type="button" class="btn btn-primary" id="saveLabel">Save Label</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-muted">No devices have been discovered yet. Run a scan to discover devices.</p>
+                <a href="/" class="btn btn-primary">Go to Dashboard</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        // Device search functionality
+        $("#deviceSearch").on("keyup", function() {
+            var value = $(this).val().toLowerCase();
+            $("#deviceTable tbody tr").filter(function() {
+                $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
+            });
+        });
+        
+        // Label modal
+        $('#labelModal').on('show.bs.modal', function (event) {
+            var button = $(event.relatedTarget);
+            var ip = button.data('ip');
+            var currentLabel = button.data('current-label');
+            
+            var modal = $(this);
+            modal.find('#deviceIp').val(ip);
+            modal.find('#deviceLabel').val(currentLabel);
+        });
+        
+        // Save label
+        $('#saveLabel').click(function() {
+            $.ajax({
+                type: 'POST',
+                url: '/update-label',
+                data: $('#labelForm').serialize(),
+                success: function(response) {
+                    if (response.success) {
+                        $('#labelModal').modal('hide');
+                        window.location.reload();
+                    } else {
+                        alert('Error updating label: ' + response.message);
+                    }
+                },
+                error: function() {
+                    alert('An error occurred while updating the label.');
+                }
+            });
+        });
+        
+        // Remove label
+        $('#removeLabel').click(function() {
+            var ip = $('#deviceIp').val();
+            $.ajax({
+                type: 'POST',
+                url: '/remove-label',
+                data: { ip: ip },
+                success: function(response) {
+                    if (response.success) {
+                        $('#labelModal').modal('hide');
+                        window.location.reload();
+                    } else {
+                        alert('Error removing label: ' + response.message);
+                    }
+                },
+                error: function() {
+                    alert('An error occurred while removing the label.');
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

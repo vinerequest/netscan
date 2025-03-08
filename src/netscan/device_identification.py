@@ -156,6 +156,18 @@ class DeviceIdentifier:
             del self.device_labels[ip]
             return self._save_device_labels()
         return False
+        
+    def get_device_label(self, ip):
+        """
+        Get the label for a device
+        
+        Args:
+            ip: IP address of the device
+            
+        Returns:
+            Label string or None if no label exists
+        """
+        return self.device_labels.get(ip)
     
     def scan_ports(self, ip, ports="1-1024", arguments=None):
         """
@@ -204,12 +216,34 @@ class DeviceIdentifier:
                 if 'tcp' in host:
                     for port, data in host['tcp'].items():
                         if data['state'] == 'open':
-                            open_ports[port] = {
-                                'name': data['name'],
-                                'product': data.get('product', ''),
-                                'version': data.get('version', '')
+                            # Format data to ensure it's all strings to avoid "expected string or bytes-like object" error
+                            port_str = str(port)
+                            service_info = {
+                                'name': str(data['name']) if data['name'] else 'unknown',
+                                'product': str(data.get('product', '')),
+                                'version': str(data.get('version', ''))
                             }
+                            open_ports[port_str] = service_info
+                            
+                            # Also add a string representation for compatibility
+                            if data['name']:
+                                service_name = data['name']
+                                if data.get('product'):
+                                    service_name += f" ({data['product']})"
+                                    if data.get('version'):
+                                        service_name += f" {data['version']}"
+                            else:
+                                service_name = "unknown"
+                            
+                            # Store in a format that both interfaces can handle correctly
+                            open_ports[port_str] = service_name
+                            
+                            # For advanced usage, store full details
+                            if "detailed" not in open_ports:
+                                open_ports["detailed"] = {}
+                            open_ports["detailed"][port_str] = service_info
             
+            logger.info(f"Scan found {len(open_ports) - (1 if 'detailed' in open_ports else 0)} open ports on {ip}")
             return open_ports
         except Exception as e:
             logger.error(f"Error scanning ports on {ip}: {str(e)}")
@@ -280,25 +314,92 @@ class DeviceIdentifier:
             "Synology": "NAS Device",
             "QNAP": "NAS Device",
             "Roku": "Media Device",
-            "Sony": "Media Device",
             "Nintendo": "Gaming Console",
             "Microsoft Xbox": "Gaming Console",
             "Sony PlayStation": "Gaming Console"
         }
         
-        # First, check for port-based identification
-        if ports and isinstance(ports, dict) and len(ports) > 0:
-            # Check for common combinations
-            port_set = set(ports.keys())
+        # Enhanced hostname-based detection for common devices
+        if hostname:
+            hostname_lower = hostname.lower()
             
-            # Router detection (common combinations)
+            # Apple device detection
+            if "macbook" in hostname_lower or "mbp" in hostname_lower:
+                return "Laptop (MacBook)"
+            if "imac" in hostname_lower:
+                return "Desktop (iMac)"
+            if "iphone" in hostname_lower:
+                return "Mobile Phone (iPhone)"
+            if "ipad" in hostname_lower:
+                return "Tablet (iPad)"
+            if "macmini" in hostname_lower or "mac-mini" in hostname_lower:
+                return "Desktop (Mac Mini)"
+            if "apple" in hostname_lower and "tv" in hostname_lower:
+                return "Media Device (Apple TV)"
+                
+            # Router/network detection
+            if "router" in hostname_lower or "gateway" in hostname_lower or "modem" in hostname_lower:
+                return "Router/Gateway"
+            if "switch" in hostname_lower:
+                return "Network Switch"
+            if "access-point" in hostname_lower or "accesspoint" in hostname_lower or "ap-" in hostname_lower:
+                return "Wireless Access Point"
+                
+            # Common device types
+            if "printer" in hostname_lower:
+                return "Printer"
+            if "camera" in hostname_lower or "cam-" in hostname_lower:
+                return "IP Camera"
+            if "phone" in hostname_lower or "mobile" in hostname_lower:
+                return "Mobile Device"
+            if "laptop" in hostname_lower or "notebook" in hostname_lower:
+                return "Laptop"
+            if "desktop" in hostname_lower or "pc-" in hostname_lower:
+                return "Desktop Computer"
+            if "nas" in hostname_lower or "storage" in hostname_lower:
+                return "Network Storage (NAS)"
+            if "pi" in hostname_lower or "raspberry" in hostname_lower:
+                return "Raspberry Pi"
+            if "server" in hostname_lower:
+                return "Server"
+            if "tv" in hostname_lower or "television" in hostname_lower:
+                return "Smart TV"
+            if "xbox" in hostname_lower:
+                return "Gaming Console (Xbox)"
+            if "playstation" in hostname_lower or "ps4" in hostname_lower or "ps5" in hostname_lower:
+                return "Gaming Console (PlayStation)"
+        
+        # Convert port strings to integers for port set detection
+        port_set = set()
+        if ports and isinstance(ports, dict):
+            # Handle cases where the scan result might contain the 'detailed' key
+            ports_to_check = {k: v for k, v in ports.items() if k != 'detailed' and k != 'error'}
+            
+            try:
+                # Convert port strings to integers for comparison
+                for port_str in ports_to_check.keys():
+                    try:
+                        port_set.add(int(port_str))
+                    except (ValueError, TypeError):
+                        # Skip non-numeric keys
+                        continue
+            except Exception as e:
+                logger.error(f"Error processing ports for device type detection: {str(e)}")
+        
+        # Check for common port combinations
+        if port_set:
+            # Router/Gateway detection 
             if (53 in port_set and (80 in port_set or 443 in port_set)) or \
-               (67 in port_set and 68 in port_set):
-                return "Router"
+                (67 in port_set and 68 in port_set):
+                return "Router/Gateway"
+                
+            # Web Server detection
+            if (80 in port_set or 443 in port_set) and len(port_set) <= 5:
+                return "Web Server"
                 
             # NAS detection
             if 445 in port_set and (139 in port_set or 111 in port_set or 2049 in port_set):
-                return "NAS Device"
+                return "Network Storage (NAS)"
                 
             # Printer detection
             if 631 in port_set or 9100 in port_set or 515 in port_set:
@@ -306,33 +407,107 @@ class DeviceIdentifier:
                 
             # IoT hub/controller
             if 1883 in port_set or 8883 in port_set:
-                return "IoT Hub"
+                return "IoT Hub/Controller"
                 
-            # Check individual ports for device type hints
-            for port in sorted(ports.keys()):
+            # SSH-enabled device
+            if 22 in port_set and len(port_set) <= 3:
+                return "SSH-enabled Device"
+                
+            # Database server
+            if (3306 in port_set or 5432 in port_set or 27017 in port_set or 6379 in port_set):
+                return "Database Server"
+                
+            # Remote desktop
+            if 3389 in port_set or 5900 in port_set:
+                return "Remote Access Device"
+                
+            # Media server
+            if 8096 in port_set or 32400 in port_set or 8080 in port_set:
+                return "Media Server"
+                
+            # Mail server
+            if 25 in port_set or 143 in port_set or 110 in port_set or 587 in port_set:
+                return "Mail Server"
+                
+            # If multiple common ports are open, it might be a multipurpose device
+            common_ports = {22, 80, 443, 445, 139, 3306, 5432, 8080}
+            intersection = port_set.intersection(common_ports)
+            if len(intersection) >= 3:
+                return "Multipurpose Server"
+            if len(intersection) == 2 and 22 in intersection:
+                return "SSH-enabled Server"
+        
+        # Vendor-based detection for specific device types
+        if vendor and vendor != "Unknown":
+            # Look for exact matches in vendor_to_type
+            for known_vendor, device_type in vendor_to_type.items():
+                if vendor.lower() == known_vendor.lower():
+                    return device_type
+                    
+            # More specific Apple device detection
+            if "apple" in vendor.lower():
+                if hostname:
+                    hostname_lower = hostname.lower()
+                    if "iphone" in hostname_lower:
+                        return "iPhone"
+                    if "ipad" in hostname_lower:
+                        return "iPad"
+                    if "macbook" in hostname_lower:
+                        return "MacBook"
+                    if "imac" in hostname_lower:
+                        return "iMac"
+                return "Apple Device"
+                
+            # Try for partial matches
+            for known_vendor, device_type in vendor_to_type.items():
+                if known_vendor.lower() in vendor.lower() or vendor.lower() in known_vendor.lower():
+                    return device_type
+        
+        # If we have an open port, determine based on most common port
+        if port_set:
+            # Find the lowest common port as it might be most characteristic
+            common_ports_ordered = [22, 80, 443, 8080, 25, 21, 23, 3389, 445, 139]
+            for port in common_ports_ordered:
+                if port in port_set:
+                    if port in self.port_device_types:
+                        return self.port_device_types[port]
+            
+            # If no common port match, use any port in our mapping
+            for port in sorted(port_set):
                 if port in self.port_device_types:
                     return self.port_device_types[port]
         
-        # Hostname-based detection
+        # Default based on hostname clues if all else fails
         if hostname:
             hostname_lower = hostname.lower()
-            if "router" in hostname_lower or "gateway" in hostname_lower:
-                return "Router"
-            if "printer" in hostname_lower:
-                return "Printer"
-            if "camera" in hostname_lower:
-                return "IP Camera"
-            if "phone" in hostname_lower or "mobile" in hostname_lower:
-                return "Mobile Device"
+            common_words = {
+                "router": "Network Device",
+                "gateway": "Network Device",
+                "switch": "Network Device",
+                "server": "Server",
+                "desktop": "Desktop Computer",
+                "laptop": "Laptop",
+                "phone": "Mobile Device",
+                "printer": "Printer",
+                "camera": "IP Camera",
+                "hub": "IoT Hub",
+                "thermostat": "Smart Thermostat",
+                "light": "Smart Light",
+                "speaker": "Smart Speaker",
+                "tv": "Smart TV"
+            }
+            
+            for word, device_type in common_words.items():
+                if word in hostname_lower:
+                    return device_type
         
-        # Vendor-based detection
-        for known_vendor, device_type in vendor_to_type.items():
-            if vendor and known_vendor.lower() in vendor.lower():
-                return device_type
+        # If we got all the way here without a match, make an attempt based on network location
+        if hostname and hostname.endswith(".lan"):
+            return "Local Network Device"
         
         return "Unknown Device"
     
-    def identify_device(self, ip, mac, hostname=None, ports=None):
+    def identify_device(self, ip, mac, hostname=None, ports=None, health_data=None):
         """
         Identify a device based on IP, MAC, and possibly open ports
         
@@ -341,6 +516,7 @@ class DeviceIdentifier:
             mac: MAC address
             hostname: Hostname (optional)
             ports: Dictionary of open ports (optional)
+            health_data: Health check data (optional)
             
         Returns:
             Device information dictionary
@@ -354,6 +530,25 @@ class DeviceIdentifier:
         # Check if there's a custom label
         label = self.device_labels.get(ip)
         
+        # Check device status (online/offline)
+        status = "Unknown"
+        if health_data:
+            if health_data.get('status') in ['Good', 'Fair', 'Poor']:
+                status = "Online"
+            else:
+                status = "Offline"
+        else:
+            # Attempt to perform a basic status check
+            try:
+                import ping3
+                result = ping3.ping(ip, timeout=1)
+                if result is not None:
+                    status = "Online"
+                else:
+                    status = "Offline"
+            except Exception as e:
+                logger.error(f"Error pinging device {ip}: {str(e)}")
+        
         # Build device info
         device_info = {
             'ip': ip,
@@ -361,6 +556,8 @@ class DeviceIdentifier:
             'hostname': hostname or "Unknown",
             'vendor': vendor,
             'type': device_type,
+            'device_type': device_type,  # For compatibility with both interfaces
+            'status': status,
             'port_scan_available': self.nmap_available
         }
         
@@ -369,6 +566,21 @@ class DeviceIdentifier:
             device_info['label'] = label
         
         if ports:
+            # Make sure the open ports are in both locations for compatibility
             device_info['open_ports'] = ports
+            device_info['ports'] = ports
+        
+        # Add health information if provided
+        if health_data:
+            device_info['health_data'] = health_data
+            
+            # For compatibility with the existing health status system
+            if 'status' in health_data:
+                if health_data['status'] == 'Good':
+                    device_info['health'] = 'healthy'
+                elif health_data['status'] == 'Poor':
+                    device_info['health'] = 'unhealthy'
+                else:
+                    device_info['health'] = 'unknown'
         
         return device_info

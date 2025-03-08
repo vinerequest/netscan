@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block title %}Device Details - NetScan Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Device Details: {{ device.ip }}</h5>
+                <div>
+                    <a href="/port-scan/{{ device.ip }}" class="btn btn-sm btn-outline-secondary me-2">
+                        <i class="bi bi-hdd-network me-1"></i> Port Scan
+                    </a>
+                    <a href="/devices" class="btn btn-sm btn-outline-primary">Back to Devices</a>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if device %}
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header">Basic Information</div>
+                            <div class="card-body">
+                                <table class="table table-striped">
+                                    <tbody>
+                                        <tr>
+                                            <th>IP Address</th>
+                                            <td>{{ device.ip }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>MAC Address</th>
+                                            <td>{{ device.mac }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Hostname</th>
+                                            <td>{{ device.hostname|default('Unknown', true) }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Device Type</th>
+                                            <td>{{ device.device_type|default('Unknown', true) }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Vendor</th>
+                                            <td>{{ device.vendor|default('Unknown', true) }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Status</th>
+                                            <td>
+                                                {% if device.health == 'healthy' %}
+                                                <span class="status-healthy"><i class="bi bi-check-circle"></i> Healthy</span>
+                                                {% elif device.health == 'unhealthy' %}
+                                                <span class="status-unhealthy"><i class="bi bi-exclamation-triangle"></i> Unhealthy</span>
+                                                {% else %}
+                                                <span class="status-unknown"><i class="bi bi-question-circle"></i> Unknown</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th>Gateway</th>
+                                            <td>
+                                                {% if device.is_gateway %}
+                                                <span class="text-primary"><i class="bi bi-check-lg"></i> Yes</span>
+                                                {% else %}
+                                                <span class="text-secondary">No</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th>Label</th>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    {% if device.label %}
+                                                    <span>{{ device.label }}</span>
+                                                    {% else %}
+                                                    <span class="text-muted">No label</span>
+                                                    {% endif %}
+                                                    <button class="btn btn-sm btn-outline-primary ms-2" 
+                                                           data-bs-toggle="modal" 
+                                                           data-bs-target="#labelModal"
+                                                           data-ip="{{ device.ip }}"
+                                                           data-current-label="{{ device.label|default('', true) }}">
+                                                        <i class="bi bi-pencil"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        {% if device.ports %}
+                        <div class="card mb-3">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <span>Open Ports</span>
+                                <a href="/port-scan/{{ device.ip }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-arrow-repeat me-1"></i> Rescan
+                                </a>
+                            </div>
+                            <div class="card-body">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Port</th>
+                                            <th>Service</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for port, service in device.ports.items() %}
+                                        <tr>
+                                            <td>{{ port }}</td>
+                                            <td>{{ service }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="card mb-3">
+                            <div class="card-header">Open Ports</div>
+                            <div class="card-body">
+                                <p class="text-muted">No port scan information available.</p>
+                                <a href="/port-scan/{{ device.ip }}" class="btn btn-primary">
+                                    <i class="bi bi-hdd-network me-1"></i> Scan Ports
+                                </a>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="card">
+                            <div class="card-header">Actions</div>
+                            <div class="card-body">
+                                <div class="d-grid gap-2">
+                                    <a href="http://{{ device.ip }}" target="_blank" class="btn btn-outline-primary">
+                                        <i class="bi bi-box-arrow-up-right me-1"></i> Open Web Interface
+                                    </a>
+                                    <a href="/ping/{{ device.ip }}" class="btn btn-outline-secondary">
+                                        <i class="bi bi-activity me-1"></i> Ping Device
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Label Modal -->
+                <div class="modal fade" id="labelModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Device Label</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="labelForm" action="/update-label" method="post">
+                                    <input type="hidden" id="deviceIp" name="ip">
+                                    <div class="mb-3">
+                                        <label for="deviceLabel" class="form-label">Label</label>
+                                        <input type="text" class="form-control" id="deviceLabel" name="label">
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-danger" id="removeLabel">Remove Label</button>
+                                <button type="button" class="btn btn-primary" id="saveLabel">Save Label</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Device not found.
+                </div>
+                <a href="/devices" class="btn btn-primary">Back to Devices</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        // Label modal
+        $('#labelModal').on('show.bs.modal', function (event) {
+            var button = $(event.relatedTarget);
+            var ip = button.data('ip');
+            var currentLabel = button.data('current-label');
+            
+            var modal = $(this);
+            modal.find('#deviceIp').val(ip);
+            modal.find('#deviceLabel').val(currentLabel);
+        });
+        
+        // Save label
+        $('#saveLabel').click(function() {
+            $.ajax({
+                type: 'POST',
+                url: '/update-label',
+                data: $('#labelForm').serialize(),
+                success: function(response) {
+                    if (response.success) {
+                        $('#labelModal').modal('hide');
+                        window.location.reload();
+                    } else {
+                        alert('Error updating label: ' + response.message);
+                    }
+                },
+                error: function() {
+                    alert('An error occurred while updating the label.');
+                }
+            });
+        });
+        
+        // Remove label
+        $('#removeLabel').click(function() {
+            var ip = $('#deviceIp').val();
+            $.ajax({
+                type: 'POST',
+                url: '/remove-label',
+                data: { ip: ip },
+                success: function(response) {
+                    if (response.success) {
+                        $('#labelModal').modal('hide');
+                        window.location.reload();
+                    } else {
+                        alert('Error removing label: ' + response.message);
+                    }
+                },
+                error: function() {
+                    alert('An error occurred while removing the label.');
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

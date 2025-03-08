@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+
+{% block title %}Port Scan - NetScan Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Port Scan: {{ ip }}</h5>
+                <a href="/device/{{ ip }}" class="btn btn-sm btn-outline-primary">Back to Device</a>
+            </div>
+            <div class="card-body">
+                {% if not nmap_available %}
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Port scanning requires nmap, which is not installed.
+                    <div class="mt-2">
+                        Install nmap with: <code>{{ 'brew install nmap' if platform == 'darwin' else 'apt install nmap' }}</code>
+                    </div>
+                </div>
+                <a href="/devices" class="btn btn-primary">Back to Devices</a>
+                {% else %}
+                <form id="scanForm" action="/port-scan/{{ ip }}" method="post" class="mb-4">
+                    <div class="row g-3 align-items-center">
+                        <div class="col-auto">
+                            <label for="portRange" class="col-form-label">Scan Type:</label>
+                        </div>
+                        <div class="col-auto">
+                            <select class="form-select" id="scanType" name="scan_type">
+                                <option value="standard" selected>Standard (Common Ports)</option>
+                                <option value="deep">Deep Scan (More Ports, Slower)</option>
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <button type="submit" id="scanButton" class="btn btn-primary">
+                                <i class="bi bi-search me-2"></i>Start Scan
+                            </button>
+                        </div>
+                    </div>
+                </form>
+                
+                <div id="scanStatus">
+                    {% if scanning %}
+                    <div class="alert alert-info">
+                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                        <span>Scanning in progress...</span>
+                    </div>
+                    {% elif ports %}
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle me-2"></i>
+                        <span>Scan completed - {{ ports|length }} open ports found</span>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                {% if ports %}
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h6 class="mb-0">Scan Results</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Port</th>
+                                        <th>Service</th>
+                                        <th>Possible Applications</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for port, service in ports.items() %}
+                                    {% if port != 'error' and port != 'detailed' %}
+                                    <tr>
+                                        <td><strong>{{ port }}</strong></td>
+                                        <td>{{ service }}</td>
+                                        <td>
+                                            {% if port|int == 22 %}
+                                            SSH, SFTP - Secure shell for remote access
+                                            {% elif port|int == 80 %}
+                                            HTTP, Web Server - Hypertext Transfer Protocol
+                                            {% elif port|int == 443 %}
+                                            HTTPS, Secure Web Server - Encrypted web traffic
+                                            {% elif port|int == 21 %}
+                                            FTP - File Transfer Protocol
+                                            {% elif port|int == 23 %}
+                                            Telnet - Remote terminal access (insecure)
+                                            {% elif port|int == 25 %}
+                                            SMTP, Mail Server - Email sending
+                                            {% elif port|int == 53 %}
+                                            DNS - Domain Name System
+                                            {% elif port|int == 110 %}
+                                            POP3 - Post Office Protocol (email retrieval)
+                                            {% elif port|int == 143 %}
+                                            IMAP - Internet Message Access Protocol (email)
+                                            {% elif port|int == 3306 %}
+                                            MySQL Database - Open source database
+                                            {% elif port|int == 5432 %}
+                                            PostgreSQL Database - Open source database
+                                            {% elif port|int == 8080 %}
+                                            Web Server, Proxy - Alternate HTTP port
+                                            {% elif port|int == 1433 %}
+                                            Microsoft SQL Server - Database
+                                            {% elif port|int == 3389 %}
+                                            Remote Desktop Protocol (RDP) - Windows remote access
+                                            {% elif port|int == 5900 or port|int == 5901 %}
+                                            VNC Remote Access - Virtual Network Computing
+                                            {% elif port|int == 6379 %}
+                                            Redis - In-memory data structure store
+                                            {% elif port|int == 27017 %}
+                                            MongoDB - NoSQL database
+                                            {% elif port|int == 139 or port|int == 445 %}
+                                            SMB, Windows File Sharing - Server Message Block
+                                            {% elif port|int == 548 %}
+                                            AFP - Apple Filing Protocol for file sharing
+                                            {% elif port|int == 631 %}
+                                            IPP - Internet Printing Protocol
+                                            {% elif port|int == 5000 %}
+                                            UPnP - Universal Plug and Play / Flask apps
+                                            {% elif port|int == 8000 %}
+                                            Common web development port (Django, etc.)
+                                            {% elif port|int == 8888 %}
+                                            Jupyter Notebook - Web-based development
+                                            {% elif port|int == 9000 %}
+                                            PHP-FPM, Web applications
+                                            {% elif port|int == 1080 %}
+                                            SOCKS Proxy - Socket Secure protocol
+                                            {% elif port|int == 1521 %}
+                                            Oracle Database - Enterprise database
+                                            {% elif port|int == 3000 %}
+                                            Development servers (React, Node.js)
+                                            {% elif port|int == 5353 %}
+                                            mDNS - Multicast DNS, used by Bonjour/Avahi
+                                            {% elif port|int == 7000 %}
+                                            AirPlay - Apple media streaming
+                                            {% elif port|int == 8443 %}
+                                            HTTPS Alt - Secure web on alternate port
+                                            {% elif port|int == 9090 %}
+                                            Prometheus, Cockpit web console
+                                            {% elif port|int == 9100 %}
+                                            Printer, Node Exporter - Metrics collection
+                                            {% elif port|int == 111 %}
+                                            RPC - Remote Procedure Call
+                                            {% elif port|int == 2049 %}
+                                            NFS - Network File System
+                                            {% elif port|int == 9200 %}
+                                            Elasticsearch - Search engine
+                                            {% elif port|int == 2375 or port|int == 2376 %}
+                                            Docker - Container management
+                                            {% elif port|int == 5222 %}
+                                            XMPP - Extensible Messaging and Presence Protocol
+                                            {% elif port|int == 5060 or port|int == 5061 %}
+                                            SIP - Session Initiation Protocol (VoIP)
+                                            {% elif port|int == 123 %}
+                                            NTP - Network Time Protocol
+                                            {% elif port|int == 161 or port|int == 162 %}
+                                            SNMP - Simple Network Management Protocol
+                                            {% elif port|int == 554 %}
+                                            RTSP - Real Time Streaming Protocol
+                                            {% elif port|int == 1900 %}
+                                            SSDP - Simple Service Discovery Protocol (UPnP)
+                                            {% elif port|int == 67 or port|int == 68 %}
+                                            DHCP - Dynamic Host Configuration Protocol
+                                            {% else %}
+                                            Custom service or application
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endif %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% elif not scanning %}
+                <div class="alert alert-secondary">
+                    <i class="bi bi-info-circle me-2"></i>
+                    Start a port scan to discover open ports and services.
+                </div>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        $('#scanForm').submit(function(e) {
+            e.preventDefault();
+            
+            // Update UI to show scanning
+            $('#scanStatus').html(`
+                <div class="alert alert-info">
+                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                    <span>Scanning in progress...</span>
+                </div>
+            `);
+            
+            // Disable button
+            $('#scanButton').prop('disabled', true);
+            
+            // Submit the form via AJAX
+            $.ajax({
+                type: 'POST',
+                url: $(this).attr('action'),
+                data: $(this).serialize(),
+                success: function(response) {
+                    if (response.success) {
+                        // Poll for scan completion
+                        pollScanStatus();
+                    } else {
+                        $('#scanStatus').html(`
+                            <div class="alert alert-danger">
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                <span>Error: ${response.message}</span>
+                            </div>
+                        `);
+                        $('#scanButton').prop('disabled', false);
+                    }
+                },
+                error: function() {
+                    $('#scanStatus').html(`
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <span>An error occurred while starting the scan.</span>
+                        </div>
+                    `);
+                    $('#scanButton').prop('disabled', false);
+                }
+            });
+        });
+        
+        function pollScanStatus() {
+            $.ajax({
+                url: window.location.pathname + '/status',
+                success: function(response) {
+                    if (response.scanning) {
+                        // Still scanning, poll again in 1 second
+                        setTimeout(pollScanStatus, 1000);
+                    } else {
+                        // Scan complete, show results without reloading
+                        console.log("Scan complete. Results:", response);
+                        
+                        // Update status
+                        let statusHtml = '';
+                        if (response.error) {
+                            statusHtml = `
+                                <div class="alert alert-danger">
+                                    <i class="bi bi-exclamation-triangle me-2"></i>
+                                    <span>Error: ${response.error}</span>
+                                </div>
+                            `;
+                        } else if (response.port_count === 0) {
+                            statusHtml = `
+                                <div class="alert alert-warning">
+                                    <i class="bi bi-info-circle me-2"></i>
+                                    <span>Scan completed - No open ports found</span>
+                                </div>
+                            `;
+                        } else {
+                            statusHtml = `
+                                <div class="alert alert-success">
+                                    <i class="bi bi-check-circle me-2"></i>
+                                    <span>Scan completed - ${response.port_count} open ports found</span>
+                                </div>
+                            `;
+                            
+                            // Add results table
+                            statusHtml += `
+                                <div class="card mt-3">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">Scan Results</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-striped">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Port</th>
+                                                        <th>Service</th>
+                                                        <th>Details</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                            `;
+                            
+                            // Loop through ports
+                            for (const [port, info] of Object.entries(response.ports)) {
+                                statusHtml += `
+                                    <tr>
+                                        <td><strong>${port}</strong></td>
+                                        <td>${info.name || info}</td>
+                                        <td>${info.product ? info.product + ' ' + info.version : ''}</td>
+                                    </tr>
+                                `;
+                            }
+                            
+                            statusHtml += `
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                        
+                        $('#scanStatus').html(statusHtml);
+                        $('#scanButton').prop('disabled', false);
+                    }
+                },
+                error: function() {
+                    // Error occurred, stop polling
+                    $('#scanStatus').html(`
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <span>An error occurred while checking scan status.</span>
+                        </div>
+                    `);
+                    $('#scanButton').prop('disabled', false);
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

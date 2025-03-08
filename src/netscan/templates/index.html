@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}NetScan Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Network Information</h5>
+                {% if network_info %}
+                <span class="badge bg-success">Connected</span>
+                {% else %}
+                <span class="badge bg-secondary">Not Connected</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if network_info %}
+                <div class="row">
+                    <div class="col-md-4">
+                        <p><strong>Network:</strong> {{ network_info.network_cidr }}</p>
+                    </div>
+                    <div class="col-md-4">
+                        <p><strong>Interface:</strong> {{ network_info.interface }}</p>
+                    </div>
+                    <div class="col-md-4">
+                        <p><strong>Local IP:</strong> {{ network_info.ip }}</p>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-muted">Network information not available. Run a scan to connect.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Network Scan</h5>
+            </div>
+            <div class="card-body">
+                <form id="scan-form" action="/scan" method="post" class="mb-3">
+                    <div class="row g-3 align-items-center">
+                        <div class="col-auto">
+                            <label for="network_cidr" class="col-form-label">Network Range:</label>
+                        </div>
+                        <div class="col-md-4">
+                            <input type="text" id="network_cidr" name="network_cidr" class="form-control" 
+                                   value="{{ network_info.network_cidr if network_info else '192.168.1.0/24' }}">
+                        </div>
+                        <div class="col-auto">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="health_check" name="health_check" checked>
+                                <label class="form-check-label" for="health_check">
+                                    Health Check
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <button type="submit" id="scan-button" class="btn btn-primary">
+                                <i class="bi bi-search me-2"></i>Scan Network
+                            </button>
+                        </div>
+                    </div>
+                </form>
+                
+                <div id="scan-status">
+                    {% if scanning %}
+                    <div class="alert alert-info">
+                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                        <span>Scanning in progress...</span>
+                    </div>
+                    {% elif devices %}
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle me-2"></i>
+                        <span>Last scan completed {{ last_scan_time }} - {{ devices|length }} devices found</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Recent Scan Results</h5>
+                {% if devices %}
+                <a href="/devices" class="btn btn-sm btn-outline-primary">View All Devices</a>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if devices %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>IP Address</th>
+                                <th>MAC Address</th>
+                                <th>Hostname</th>
+                                <th>Device Type</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for device in devices[:5] %}
+                            <tr>
+                                <td>{{ device.ip }}</td>
+                                <td>{{ device.mac }}</td>
+                                <td>{{ device.hostname|default('Unknown', true) }}</td>
+                                <td>{{ device.device_type|default('Unknown', true) }}</td>
+                                <td>
+                                    {% if device.health == 'healthy' %}
+                                    <span class="status-healthy"><i class="bi bi-check-circle"></i> Healthy</span>
+                                    {% elif device.health == 'unhealthy' %}
+                                    <span class="status-unhealthy"><i class="bi bi-exclamation-triangle"></i> Unhealthy</span>
+                                    {% else %}
+                                    <span class="status-unknown"><i class="bi bi-question-circle"></i> Unknown</span>
+                                    {% endif %}
+                                    
+                                    {% if device.is_gateway %}
+                                    <span class="badge bg-info gateway-badge">Gateway</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="/device/{{ device.ip }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-info-circle"></i>
+                                    </a>
+                                    <a href="/port-scan/{{ device.ip }}" class="btn btn-sm btn-outline-secondary">
+                                        <i class="bi bi-hdd-network"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if devices|length > 5 %}
+                <div class="text-center mt-3">
+                    <a href="/devices" class="btn btn-outline-primary">View All {{ devices|length }} Devices</a>
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="text-muted">No devices have been discovered yet. Run a scan to discover devices.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        $('#scan-form').submit(function(e) {
+            e.preventDefault();
+            
+            // Update UI to show scanning
+            $('#scan-status').html(`
+                <div class="alert alert-info">
+                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                    <span>Scanning in progress...</span>
+                </div>
+            `);
+            
+            // Disable button
+            $('#scan-button').prop('disabled', true);
+            
+            // Submit the form via AJAX
+            $.ajax({
+                type: 'POST',
+                url: '/scan',
+                data: $(this).serialize(),
+                success: function(response) {
+                    if (response.success) {
+                        // Poll for scan completion
+                        pollScanStatus();
+                    } else {
+                        $('#scan-status').html(`
+                            <div class="alert alert-danger">
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                <span>Error: ${response.message}</span>
+                            </div>
+                        `);
+                        $('#scan-button').prop('disabled', false);
+                    }
+                },
+                error: function() {
+                    $('#scan-status').html(`
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <span>An error occurred while starting the scan.</span>
+                        </div>
+                    `);
+                    $('#scan-button').prop('disabled', false);
+                }
+            });
+        });
+        
+        function pollScanStatus() {
+            $.ajax({
+                url: '/scan-status',
+                success: function(response) {
+                    if (response.scanning) {
+                        // Still scanning, poll again in 2 seconds
+                        setTimeout(pollScanStatus, 2000);
+                    } else {
+                        // Scan complete, reload page
+                        window.location.reload();
+                    }
+                },
+                error: function() {
+                    // Error occurred, stop polling
+                    $('#scan-status').html(`
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <span>An error occurred while checking scan status.</span>
+                        </div>
+                    `);
+                    $('#scan-button').prop('disabled', false);
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

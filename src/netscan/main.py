@@ -16,6 +16,8 @@ from tabulate import tabulate
 from .network_discovery import get_network_info, discover_devices
 from .device_identification import DeviceIdentifier
 from .cli_display import CLIDisplay
+from .interactive_cli import InteractiveCLI
+from .web_dashboard import WebDashboard
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -53,6 +55,11 @@ def parse_arguments():
     
     # Export results
     parser.add_argument('--output', metavar='FILE', help='Save scan results to a JSON file')
+    
+    # Interface options
+    parser.add_argument('--interactive', action='store_true', help='Launch the interactive CLI mode')
+    parser.add_argument('--web', action='store_true', help='Launch the web dashboard interface')
+    parser.add_argument('--web-port', type=int, default=5000, help='Port for the web dashboard (default: 5000)')
     
     return parser.parse_args()
 
@@ -141,6 +148,16 @@ def main():
         
         # Initialize device identifier with custom labels file if specified
         identifier = DeviceIdentifier(labels_file=args.labels_file)
+        
+        # Handle interactive mode
+        if args.interactive:
+            interactive_cli = InteractiveCLI(display, identifier)
+            return interactive_cli.run()
+            
+        # Handle web dashboard mode
+        if args.web:
+            web_dashboard = WebDashboard(display, identifier, port=args.web_port)
+            return web_dashboard.run()
         
         # Handle label management commands
         if args.list_labels:
