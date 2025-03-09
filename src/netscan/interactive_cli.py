@@ -5,6 +5,7 @@ import sys
 import time
 import re
 import socket
+import logging
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -14,6 +15,9 @@ from rich.layout import Layout
 from rich.live import Live
 
 from .network_discovery import get_network_info, discover_devices
+
+# Configure logging
+logger = logging.getLogger("netscan")
 
 class InteractiveCLI:
     """Interactive CLI interface for the network scanner using Rich"""

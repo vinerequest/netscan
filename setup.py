@@ -16,6 +16,8 @@ setup(
         "mac-vendor-lookup==0.1.12",
         "tabulate==0.9.0",
         "ping3==4.0.4",
+        "flask>=2.0.0",
+        "rich>=10.0.0",
     ],
     entry_points={
         'console_scripts': [

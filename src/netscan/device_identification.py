@@ -7,6 +7,7 @@ import shutil
 import nmap
 import re
 import socket
+import time
 from mac_vendor_lookup import MacLookup
 from pathlib import Path
 
@@ -181,70 +182,130 @@ class DeviceIdentifier:
         Returns:
             Dictionary of open ports and services
         """
+        # Log the scan request
+        logger.info(f"Scan ports request: IP={ip}, ports={ports}, args={arguments}")
+        
         if not self.nmap_available:
+            logger.warning("nmap not available for port scanning")
             return {"error": "nmap not available"}
+            
+        # Check ports parameter - handle None and other non-string types
+        if ports is None:
+            logger.info("Using default port range 1-1024 as ports parameter was None")
+            port_range = "1-1024"  # Default if None
+        elif isinstance(ports, str):
+            port_range = ports
+        else:
+            # Try to convert to string if it's not already
+            try:
+                port_range = str(ports)
+                logger.info(f"Converted ports parameter to string: {port_range}")
+            except Exception as e:
+                logger.error(f"Cannot convert ports parameter to string: {str(e)}")
+                return {"error": f"Invalid ports parameter: {str(e)}"}
             
         # Validate IP address
         try:
             socket.inet_aton(ip)
         except socket.error:
+            logger.error(f"Invalid IP address for scanning: {ip}")
             return {"error": f"Invalid IP address: {ip}"}
             
         # Sanitize inputs to prevent command injection
-        ip = re.sub(r'[^0-9.]', '', ip)
-        ports = re.sub(r'[^0-9,\-]', '', ports)
+        sanitized_ip = re.sub(r'[^0-9.]', '', ip)
+        sanitized_ports = re.sub(r'[^0-9,\-]', '', port_range)
+        
+        logger.info(f"Sanitized scan parameters: IP={sanitized_ip}, ports={sanitized_ports}")
         
         try:
+            # Import nmap just to be sure
+            import nmap
+            
             # Initialize nmap scanner
             nm = nmap.PortScanner()
             
             # Build nmap arguments
-            scan_args = "-sV -T4"  # Version detection, aggressive timing
+            scan_args = "-sT -T4"  # TCP connect scan, aggressive timing
             if arguments:
                 # Only allow safe arguments
                 safe_args = re.sub(r'[&|;`$><]', '', arguments)
                 scan_args += f" {safe_args}"
                 
             # Execute nmap scan
-            logger.info(f"Scanning ports {ports} on {ip}...")
-            nm.scan(ip, ports, arguments=scan_args)
+            logger.info(f"Running nmap scan on {sanitized_ip} with port range {sanitized_ports}...")
+            start_time = time.time()
+            
+            # Perform the actual scan
+            nm.scan(sanitized_ip, sanitized_ports, arguments=scan_args)
+            scan_duration = time.time() - start_time
+            logger.info(f"Scan completed in {scan_duration:.2f} seconds")
             
             # Process results
             open_ports = {}
-            if ip in nm.all_hosts():
-                host = nm[ip]
+            if sanitized_ip in nm.all_hosts():
+                host = nm[sanitized_ip]
+                
+                logger.debug(f"Host protocols: {host.all_protocols()}")
+                
+                # Check TCP ports
                 if 'tcp' in host:
+                    logger.info(f"Found TCP ports for {sanitized_ip}: {list(host['tcp'].keys())}")
                     for port, data in host['tcp'].items():
+                        logger.debug(f"Port {port} data: {data}")
                         if data['state'] == 'open':
-                            # Format data to ensure it's all strings to avoid "expected string or bytes-like object" error
+                            # Convert port to string for consistent dictionary keys
                             port_str = str(port)
-                            service_info = {
-                                'name': str(data['name']) if data['name'] else 'unknown',
-                                'product': str(data.get('product', '')),
-                                'version': str(data.get('version', ''))
-                            }
-                            open_ports[port_str] = service_info
                             
-                            # Also add a string representation for compatibility
-                            if data['name']:
-                                service_name = data['name']
-                                if data.get('product'):
-                                    service_name += f" ({data['product']})"
-                                    if data.get('version'):
-                                        service_name += f" {data['version']}"
+                            # Get service details
+                            service_name = data['name'] if data['name'] else 'unknown'
+                            product = data.get('product', '')
+                            version = data.get('version', '')
+                            
+                            # Create friendly service description
+                            if service_name != 'unknown' and product:
+                                if version:
+                                    service_desc = f"{service_name} ({product} {version})"
+                                else:
+                                    service_desc = f"{service_name} ({product})"
                             else:
-                                service_name = "unknown"
+                                service_desc = service_name
+                                
+                            # Add to results
+                            open_ports[port_str] = service_desc
                             
-                            # Store in a format that both interfaces can handle correctly
-                            open_ports[port_str] = service_name
-                            
-                            # For advanced usage, store full details
-                            if "detailed" not in open_ports:
-                                open_ports["detailed"] = {}
-                            open_ports["detailed"][port_str] = service_info
+                            # Log identified port
+                            logger.info(f"Detected open port {port_str}: {service_desc}")
+                else:
+                    logger.info(f"No TCP ports found for {sanitized_ip}")
+                
+                # Check UDP ports if available
+                if 'udp' in host:
+                    for port, data in host['udp'].items():
+                        if data['state'] == 'open':
+                            port_str = str(port)
+                            service_name = data['name'] if data['name'] else 'unknown'
+                            open_ports[f"{port_str}/udp"] = service_name
+            else:
+                logger.warning(f"Host {sanitized_ip} not found in scan results")
+                logger.debug(f"Scan result: {nm.all_hosts()}")
             
-            logger.info(f"Scan found {len(open_ports) - (1 if 'detailed' in open_ports else 0)} open ports on {ip}")
+            # Store detailed information separately
+            if open_ports:
+                open_ports["detailed"] = {
+                    "scan_type": "standard" if sanitized_ports == "1-1024" else "deep",
+                    "scan_time": scan_duration,
+                    "ports_checked": sanitized_ports,
+                    "scan_timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+                }
+                
+            logger.info(f"Scan found {len(open_ports) - (1 if 'detailed' in open_ports else 0)} open ports on {sanitized_ip}")
+            logger.info(f"Raw scan result for {sanitized_ip}: {nm._scan_result if hasattr(nm, '_scan_result') else 'Not available'}")
+            
             return open_ports
+        except ImportError:
+            logger.error("nmap Python module not installed")
+            self.nmap_available = False
+            return {"error": "nmap Python module not installed"}
         except Exception as e:
             logger.error(f"Error scanning ports on {ip}: {str(e)}")
             return {"error": str(e)}

@@ -101,86 +101,133 @@ class CLIDisplay:
         if not devices:
             print(f"{self.yellow}No devices found on the network.{self.end}")
             return
-        
+            
+        # Log devices for debugging
+        logger.info(f"Displaying devices: {len(devices)} items found")
+        logger.debug(f"Raw devices data: {devices}")
+            
         # Prepare table data
         table_data = []
-        for device in devices:
-            # Format IP address (highlight gateway)
-            ip = device.get('ip', 'Unknown')
-            if device.get('is_gateway', False):
-                ip = f"{self.bold}{ip} (Gateway){self.end}"
+        for i, device in enumerate(devices):
+            # Verify device is a dictionary and not None
+            if device is None:
+                logger.error(f"Device at index {i} is None")
+                continue
                 
-            # Format MAC address
-            mac = device.get('mac', 'Unknown')
+            if not isinstance(device, dict):
+                logger.error(f"Device at index {i} is not a dictionary but {type(device)}")
+                continue
+                
+            # Log individual device for debugging
+            logger.debug(f"Processing device {i+1}: {device}")
             
-            # Format hostname
-            hostname = device.get('hostname', 'Unknown')
-            if hostname is None or hostname == 'Unknown':
-                hostname = '-'
-            # Truncate if too long
-            if len(hostname) > 25:
-                hostname = hostname[:22] + '...'
+            # Safely extract device data with defaults
+            try:
+                # Format IP address (highlight gateway)
+                ip = device.get('ip', 'Unknown')
+                if not ip or ip == 'None':
+                    ip = 'Unknown'
+                    logger.warning(f"Device missing IP address: {device}")
+                    
+                if device.get('is_gateway', False):
+                    ip = f"{self.bold}{ip} (Gateway){self.end}"
+                    
+                # Format MAC address
+                mac = device.get('mac', 'Unknown')
+                if mac is None:
+                    mac = 'Unknown'
                 
-            # Format vendor
-            vendor = device.get('vendor', 'Unknown')
-            if vendor is None or vendor == 'Unknown':
-                vendor = '-'
-            # Truncate if too long
-            if len(vendor) > 20:
-                vendor = vendor[:17] + '...'
-                
-            # Format device type (with label if available)
-            device_type = device.get('type', 'Unknown')
-            if device.get('label'):
-                device_type = f"{device_type} {self.green}({device['label']}){self.end}"
-                
-            # Format health information
-            health_info = ""
-            health = device.get('health', {})
-            if health:
-                status = health.get('status', 'Unknown')
-                latency = health.get('latency_ms')
-                packet_loss = health.get('packet_loss_pct')
-                
-                # Color-code based on health status
-                if status == 'Good':
-                    status_display = f"{self.green}{status}{self.end}"
-                elif status == 'Fair':
-                    status_display = f"{self.yellow}{status}{self.end}"
-                elif status == 'Poor' or status == 'Offline':
-                    status_display = f"{self.red}{status}{self.end}"
-                else:
-                    status_display = status
-                
-                # Format complete health info
-                if latency is not None and packet_loss is not None:
-                    health_info = f"{status_display} ({latency}ms, {packet_loss}% loss)"
-                else:
-                    health_info = status_display
-            
-            # Format port information
-            port_info = ""
-            open_ports = device.get('open_ports', {})
-            if open_ports and isinstance(open_ports, dict):
-                if "error" in open_ports:
-                    port_info = f"{self.yellow}Error: {open_ports['error']}{self.end}"
-                else:
-                    # For many ports, just show count and important ones
-                    port_nums = list(open_ports.keys())
-                    if len(port_nums) > 5:
-                        important_ports = [80, 443, 22, 53, 3389, 445, 139, 21, 25, 110, 631, 9100]
-                        highlights = [p for p in port_nums if p in important_ports]
-                        if highlights:
-                            port_info = f"{len(port_nums)} ports, including: {', '.join(map(str, sorted(highlights)))}"
-                        else:
-                            port_info = f"{len(port_nums)} open ports"
+                # Format hostname
+                hostname = device.get('hostname', 'Unknown')
+                if hostname is None or hostname == 'Unknown':
+                    hostname = '-'
+                # Truncate if too long
+                if hostname and len(hostname) > 25:
+                    hostname = hostname[:22] + '...'
+                    
+                # Format vendor
+                vendor = device.get('vendor', 'Unknown')
+                if vendor is None or vendor == 'Unknown':
+                    vendor = '-'
+                # Truncate if too long
+                if vendor and len(vendor) > 20:
+                    vendor = vendor[:17] + '...'
+                    
+                # Format device type (with label if available)
+                device_type = device.get('type', device.get('device_type', 'Unknown'))
+                if device_type is None:
+                    device_type = 'Unknown'
+                    
+                if device.get('label'):
+                    device_type = f"{device_type} {self.green}({device['label']}){self.end}"
+                    
+                # Format health information
+                health_info = ""
+                health = device.get('health', {})
+                if isinstance(health, dict):
+                    status = health.get('status', 'Unknown')
+                    latency = health.get('latency_ms')
+                    packet_loss = health.get('packet_loss_pct')
+                    
+                    # Color-code based on health status
+                    if status == 'Good':
+                        status_display = f"{self.green}{status}{self.end}"
+                    elif status == 'Fair':
+                        status_display = f"{self.yellow}{status}{self.end}"
+                    elif status == 'Poor' or status == 'Offline':
+                        status_display = f"{self.red}{status}{self.end}"
                     else:
-                        # If just a few ports, show them all
-                        port_info = f"Ports: {', '.join(map(str, sorted(port_nums)))}"
-            
-            # Build the complete row
-            row = [ip, mac, hostname, vendor, device_type, health_info, port_info]
-            table_data.append(row)
+                        status_display = status
+                    
+                    # Format complete health info
+                    if latency is not None and packet_loss is not None:
+                        health_info = f"{status_display} ({latency}ms, {packet_loss}% loss)"
+                    else:
+                        health_info = status_display
+                elif isinstance(health, str):
+                    health_info = health
+                
+                # Format port information
+                port_info = ""
+                open_ports = device.get('open_ports', device.get('ports', {}))
+                if open_ports and isinstance(open_ports, dict):
+                    if "error" in open_ports:
+                        port_info = f"{self.yellow}Error: {open_ports['error']}{self.end}"
+                    else:
+                        # For many ports, just show count and important ones
+                        port_nums = [p for p in open_ports.keys() if p not in ('detailed', 'error')]
+                        if port_nums:
+                            # Convert any port numbers to strings for consistency
+                            port_nums = [str(p) for p in port_nums]
+                            
+                            if len(port_nums) > 5:
+                                important_ports = ['80', '443', '22', '53', '3389', '445', '139', '21', '25', '110', '631', '9100']
+                                highlights = [p for p in port_nums if p in important_ports]
+                                if highlights:
+                                    port_info = f"{len(port_nums)} ports, including: {', '.join(sorted(highlights))}"
+                                else:
+                                    port_info = f"{len(port_nums)} open ports"
+                            else:
+                                # If just a few ports, show them all
+                                port_info = f"Ports: {', '.join(sorted(port_nums))}"
+                        else:
+                            port_info = "No open ports"
+                
+                # Build the complete row
+                row = [ip, mac, hostname, vendor, device_type, health_info, port_info]
+                table_data.append(row)
+            except Exception as e:
+                logger.error(f"Error processing device {i+1}: {str(e)}")
+                # Add a simple row for devices with errors
+                table_data.append([
+                    device.get('ip', 'Error'),
+                    device.get('mac', 'Unknown'),
+                    'Error',
+                    'Error',
+                    'Error processing device data',
+                    '',
+                    f"{self.red}Error: {str(e)}{self.end}"
+                ])
         
         # Define table headers
         headers = ["IP Address", "MAC Address", "Hostname", "Vendor", "Device Type", "Health", "Ports"]

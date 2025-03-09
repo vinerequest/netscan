@@ -7,7 +7,12 @@ import threading
 import webbrowser
 import socket
 import traceback
+import logging
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("netscan")
 
 from .network_discovery import get_network_info, discover_devices
 
@@ -1524,55 +1529,97 @@ class WebDashboard:
         def device_detail(ip):
             """Device detail page route"""
             try:
+                logger.info(f"Accessing device details for IP: {ip}")
                 device = next((d for d in self.devices if d['ip'] == ip), None)
                 
                 if device:
+                    logger.info(f"Found device in device list: {ip}")
                     # Add label info
-                    device_copy = device.copy()
-                    device_copy['label'] = self.identifier.get_device_label(ip)
-                    
-                    # Make sure ports is a dict if it exists
-                    if 'ports' in device_copy and not isinstance(device_copy['ports'], dict):
-                        device_copy['ports'] = {}
-                    
-                    # Make sure we have the most up-to-date vendor information
-                    if device_copy.get('mac') and device_copy.get('mac') != 'Unknown':
-                        device_copy['vendor'] = self.identifier.get_mac_vendor(device_copy['mac'])
-                    
-                    # Check online status if needed
-                    if 'status' not in device_copy or device_copy['status'] == 'Unknown':
+                    try:
+                        device_copy = device.copy()
+                        # Get device label safely with fallback
                         try:
-                            import ping3
-                            result = ping3.ping(ip, timeout=1)
-                            if result is not None:
-                                device_copy['status'] = "Online"
+                            device_copy['label'] = self.identifier.get_device_label(ip) or "No label"
+                        except Exception as label_error:
+                            logger.error(f"Error getting device label: {str(label_error)}")
+                            device_copy['label'] = "No label"
+                        
+                        # Ensure ports data is properly formatted
+                        if 'ports' not in device_copy:
+                            device_copy['ports'] = {}
+                        elif not isinstance(device_copy['ports'], dict):
+                            logger.warning(f"Ports for {ip} is not a dictionary: {type(device_copy['ports'])}")
+                            device_copy['ports'] = {}
+                            
+                        # Handle empty ports dictionary
+                        if isinstance(device_copy['ports'], dict) and not device_copy['ports']:
+                            logger.info(f"Empty ports dictionary for {ip}, adding 'No ports scanned yet' message")
+                            device_copy['ports'] = {"message": "No ports scanned yet"}
+                        
+                        # Log port data for debugging
+                        logger.debug(f"Port data for {ip}: {device_copy['ports']}")
+                        
+                        # Make sure we have the most up-to-date vendor information
+                        if device_copy.get('mac') and device_copy.get('mac') != 'Unknown':
+                            try:
+                                device_copy['vendor'] = self.identifier.get_mac_vendor(device_copy['mac'])
+                            except Exception as vendor_error:
+                                logger.error(f"Error getting vendor for MAC {device_copy['mac']}: {str(vendor_error)}")
+                                device_copy['vendor'] = "Unknown"
+                        
+                        # Check online status if needed
+                        if 'status' not in device_copy or device_copy['status'] == 'Unknown':
+                            try:
+                                import ping3
+                                result = ping3.ping(ip, timeout=1)
+                                if result is not None:
+                                    device_copy['status'] = "Online"
+                                else:
+                                    device_copy['status'] = "Offline"
+                            except Exception as e:
+                                logger.error(f"Error pinging device: {str(e)}")
+                                device_copy['status'] = "Unknown"
+                        
+                        # Make sure device_type is set
+                        if not device_copy.get('device_type') or device_copy['device_type'] == 'Unknown':
+                            if device_copy.get('type'):
+                                device_copy['device_type'] = device_copy['type']
                             else:
-                                device_copy['status'] = "Offline"
-                        except Exception as e:
-                            print(f"Error pinging device: {str(e)}")
-                            device_copy['status'] = "Unknown"
-                    
-                    # Make sure device_type is set
-                    if not device_copy.get('device_type') or device_copy['device_type'] == 'Unknown':
-                        if device_copy.get('type'):
-                            device_copy['device_type'] = device_copy['type']
-                        else:
-                            # Determine device type based on available information
-                            device_copy['device_type'] = self.identifier.determine_device_type(
-                                device_copy.get('vendor', 'Unknown'),
-                                device_copy.get('ports', {}),
-                                device_copy.get('hostname', None)
-                            )
-                    
-                    return render_template('device_detail.html', device=device_copy)
+                                # Determine device type based on available information
+                                try:
+                                    device_copy['device_type'] = self.identifier.determine_device_type(
+                                        device_copy.get('vendor', 'Unknown'),
+                                        device_copy.get('ports', {}),
+                                        device_copy.get('hostname', None)
+                                    )
+                                except Exception as dtype_error:
+                                    logger.error(f"Error determining device type: {str(dtype_error)}")
+                                    device_copy['device_type'] = "Unknown Device"
+                        
+                        return render_template('device_detail.html', device=device_copy)
+                    except Exception as copy_error:
+                        logger.error(f"Error preparing device copy: {str(copy_error)}")
+                        # Fallback to basic device display
+                        return render_template('device_detail.html', device={
+                            'ip': ip,
+                            'mac': device.get('mac', 'Unknown'),
+                            'hostname': device.get('hostname', 'Unknown'),
+                            'device_type': device.get('device_type', device.get('type', 'Unknown Device')),
+                            'vendor': device.get('vendor', 'Unknown'),
+                            'status': device.get('status', 'Unknown'),
+                            'label': "Error loading label",
+                            'ports': {"message": "Error loading port information"}
+                        })
                 else:
+                    logger.info(f"Device not found, creating basic device info for {ip}")
                     # If device not found, create a basic info object with the IP and try to get some information
                     hostname = None
                     try:
                         hostname = socket.getfqdn(ip)
                         if hostname == ip:  # If hostname is the same as IP, resolution failed
                             hostname = 'Unknown'
-                    except Exception:
+                    except Exception as hostname_error:
+                        logger.error(f"Error resolving hostname: {str(hostname_error)}")
                         hostname = 'Unknown'
                     
                     # Try to ping the device
@@ -1584,8 +1631,17 @@ class WebDashboard:
                             status = "Online"
                         else:
                             status = "Offline"
-                    except Exception as e:
-                        print(f"Error pinging device: {str(e)}")
+                    except Exception as ping_error:
+                        logger.error(f"Error pinging device: {str(ping_error)}")
+                    
+                    # Try to get label safely
+                    label = "No label"
+                    try:
+                        device_label = self.identifier.get_device_label(ip)
+                        if device_label:
+                            label = device_label
+                    except Exception as label_error:
+                        logger.error(f"Error getting device label for new device: {str(label_error)}")
                     
                     # Create a basic device object
                     basic_device = {
@@ -1595,24 +1651,22 @@ class WebDashboard:
                         'device_type': 'Unknown Device',
                         'vendor': 'Unknown',
                         'status': status,
-                        'label': self.identifier.get_device_label(ip)
+                        'label': label,
+                        'ports': {'message': 'No ports scanned yet'}  # Add a message for empty ports
                     }
+                    
+                    # Add this device to our device list so it persists between requests
+                    self.devices.append(basic_device)
+                    logger.info(f"Added new basic device to list: {ip}")
                     
                     return render_template('device_detail.html', device=basic_device)
             except Exception as e:
-                print(f"Error in device_detail route: {str(e)}")
+                logger.error(f"Error in device_detail route: {str(e)}")
                 traceback.print_exc()
-                # Return a simple error page
-                return f"""
-                <html>
-                    <head><title>Error</title></head>
-                    <body>
-                        <h1>Error displaying device details</h1>
-                        <p>{str(e)}</p>
-                        <p><a href="/">Back to Dashboard</a></p>
-                    </body>
-                </html>
-                """
+                
+                # Return a proper error page
+                return render_template('error.html', error=f"Error displaying device details: {str(e)}")
+            
         
         @app.route('/port-scan/<ip>', methods=['GET'])
         def port_scan_page(ip):
@@ -1627,11 +1681,38 @@ class WebDashboard:
                         ports = device['open_ports']
                     elif 'ports' in device and isinstance(device['ports'], dict):
                         ports = device['ports']
+                    
+                    # If ports is empty or doesn't exist, provide a message
+                    if not ports:
+                        logger.info(f"No ports data for {ip}, setting a message")
+                        ports = {"message": "No ports scanned yet"}
+                        
+                        # Also update the device object for consistency
+                        for i, d in enumerate(self.devices):
+                            if d['ip'] == ip:
+                                self.devices[i]['ports'] = ports
+                                self.devices[i]['open_ports'] = ports
+                                break
+                else:
+                    # Create a basic device entry if none exists
+                    logger.info(f"No device entry for {ip}, creating one")
+                    ports = {"message": "No ports scanned yet"}
+                    new_device = {
+                        'ip': ip,
+                        'mac': 'Unknown',
+                        'hostname': 'Unknown',
+                        'device_type': 'Unknown Device',
+                        'vendor': 'Unknown',
+                        'status': 'Unknown',
+                        'ports': ports,
+                        'open_ports': ports
+                    }
+                    self.devices.append(new_device)
                 
                 # Check if a scan is currently running for this IP
                 is_scanning = ip in self.port_scanning and self.port_scanning[ip]
                 
-                print(f"Rendering port scan page for {ip}. Is Scanning: {is_scanning}, Ports: {ports}")
+                logger.info(f"Rendering port scan page for {ip}. Is Scanning: {is_scanning}, Ports: {ports}")
                 
                 return render_template('port_scan.html', 
                                       ip=ip,
@@ -1698,6 +1779,9 @@ class WebDashboard:
                 
                 # Get port information if scan has completed
                 ports = {}
+                error_message = None
+                status_message = None
+                
                 if not is_scanning:
                     # Try to find the device
                     device = next((d for d in self.devices if d['ip'] == ip), None)
@@ -1710,10 +1794,19 @@ class WebDashboard:
                         else:
                             raw_ports = {}
                         
+                        # Check for special keys first
+                        if 'error' in raw_ports:
+                            error_message = raw_ports['error']
+                            logger.warning(f"Error in port scan for {ip}: {error_message}")
+                            
+                        if 'message' in raw_ports:
+                            status_message = raw_ports['message']
+                            logger.info(f"Port scan message for {ip}: {status_message}")
+                            
                         # Clean up ports data for display
                         for port_key, port_info in raw_ports.items():
-                            # Skip non-port keys like 'detailed' or 'error'
-                            if port_key in ['detailed', 'error']:
+                            # Skip special keys
+                            if port_key in ['detailed', 'error', 'message']:
                                 continue
                                 
                             # Process different formats of port info
@@ -1734,17 +1827,28 @@ class WebDashboard:
                             else:
                                 # Fallback for any other data type
                                 ports[port_key] = str(port_info)
+                    else:
+                        # If no device is found, create a message
+                        status_message = "No device information available"
                 
                 port_count = len(ports)
-                print(f"Port scan status for {ip}: scanning={is_scanning}, ports={port_count}")
+                logger.info(f"Port scan status for {ip}: scanning={is_scanning}, ports={port_count}")
                 
                 # Return status and port data for AJAX updates
-                return jsonify({
+                response_data = {
                     'scanning': is_scanning,
                     'ports': ports,
                     'port_count': port_count,
                     'scan_type': 'deep' if port_count > 10 else 'standard'
-                })
+                }
+                
+                # Add error or status message if available
+                if error_message:
+                    response_data['error'] = error_message
+                if status_message:
+                    response_data['message'] = status_message
+                
+                return jsonify(response_data)
             except Exception as e:
                 print(f"Error in port_scan_status: {str(e)}")
                 traceback.print_exc()
@@ -1839,17 +1943,17 @@ class WebDashboard:
     def _run_port_scan(self, ip, port_range=None):
         """Run a port scan in the background"""
         try:
-            print(f"Starting port scan for {ip} with range: {port_range if port_range else 'default'}")
+            logger.info(f"Starting port scan for {ip} with range: {port_range if port_range else 'default'}")
             
             # Scan ports - handle with error checking
             try:
                 scan_result = self.identifier.scan_ports(ip, ports=port_range)
-                print(f"Raw scan result for {ip}: {scan_result}")
+                logger.info(f"Raw scan result for {ip}: {scan_result}")
                 
                 # Validate scan result is a dictionary
                 if isinstance(scan_result, dict):
                     if "error" in scan_result:
-                        print(f"Scan error for {ip}: {scan_result['error']}")
+                        logger.error(f"Scan error for {ip}: {scan_result['error']}")
                         ports = {"error": scan_result['error']}
                     else:
                         # Process port scan results
@@ -1881,24 +1985,27 @@ class WebDashboard:
                                 # Fallback for any other data type
                                 ports[port_str] = str(port_info)
                                 
-                        # If we have no ports after processing, might be empty result
+                        # If we have no ports after processing, set a clear message
                         if not ports and 'detailed' not in scan_result:
-                            print(f"No open ports found for {ip}")
+                            logger.info(f"No open ports found for {ip}")
+                            ports = {"message": "No open ports found"}
                 else:
-                    print(f"Invalid scan result type: {type(scan_result)}")
-                    ports = {}
+                    logger.error(f"Invalid scan result type: {type(scan_result)}")
+                    ports = {"error": f"Invalid scan result type: {type(scan_result)}"}
             except Exception as scan_error:
-                print(f"Exception during scan_ports: {str(scan_error)}")
+                logger.error(f"Exception during scan_ports: {str(scan_error)}")
                 traceback.print_exc()
                 ports = {"error": str(scan_error)}
             
             # Log the port scan result
             if "error" in ports:
-                print(f"Port scan failed for {ip}: {ports['error']}")
+                logger.error(f"Port scan failed for {ip}: {ports['error']}")
+            elif "message" in ports:
+                logger.info(f"Port scan completed for {ip}: {ports['message']}")
             else:
-                print(f"Port scan results for {ip}: found {len(ports)} ports")
+                logger.info(f"Port scan results for {ip}: found {len(ports)} ports")
                 for port, info in ports.items():
-                    print(f"  Port {port}: {info}")
+                    logger.debug(f"  Port {port}: {info}")
             
             # Update device info if it exists
             device_updated = False
@@ -1909,7 +2016,7 @@ class WebDashboard:
                     self.devices[i]['open_ports'] = ports
                     
                     # Update device type if we found open ports
-                    if ports and not "error" in ports and len(ports) > 0:
+                    if ports and "error" not in ports and "message" not in ports and len(ports) > 0:
                         # Create a clean copy of ports for device type determination
                         device_type = self.identifier.determine_device_type(
                             device.get('vendor', 'Unknown'),
@@ -1924,7 +2031,7 @@ class WebDashboard:
             
             # If device not in list, add a basic entry
             if not device_updated:
-                print(f"Adding new device for {ip} with scan results")
+                logger.info(f"Adding new device for {ip} with scan results")
                 
                 # Try to identify the device with the port information
                 hostname = None
@@ -1932,7 +2039,8 @@ class WebDashboard:
                     hostname = socket.getfqdn(ip)
                     if hostname == ip:  # If hostname is the same as IP, resolution failed
                         hostname = 'Unknown'
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Error resolving hostname for {ip}: {str(e)}")
                     hostname = 'Unknown'
                 
                 # Get MAC address if possible (will be Unknown on many systems)
@@ -1945,18 +2053,26 @@ class WebDashboard:
                         mac_match = re.search(r'([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})', output)
                         if mac_match:
                             mac = mac_match.group(0)
-                    except subprocess.SubprocessError:
-                        pass  # Silently handle subprocess errors
-                except Exception:
-                    pass  # Silently handle any other errors
+                    except subprocess.SubprocessError as e:
+                        logger.debug(f"Error getting MAC address with ARP for {ip}: {str(e)}")
+                except Exception as e:
+                    logger.debug(f"Error getting MAC address for {ip}: {str(e)}")
                 
                 # Get vendor information
                 vendor = 'Unknown'
                 if mac != 'Unknown':
-                    vendor = self.identifier.get_mac_vendor(mac)
+                    try:
+                        vendor = self.identifier.get_mac_vendor(mac)
+                    except Exception as e:
+                        logger.debug(f"Error getting vendor for {mac}: {str(e)}")
                 
                 # Determine device type based on ports
-                device_type = self.identifier.determine_device_type(vendor, ports, hostname)
+                device_type = 'Unknown Device'
+                if ports and "error" not in ports and "message" not in ports:
+                    try:
+                        device_type = self.identifier.determine_device_type(vendor, ports, hostname)
+                    except Exception as e:
+                        logger.error(f"Error determining device type: {str(e)}")
                 
                 new_device = {
                     'ip': ip,
@@ -1967,9 +2083,11 @@ class WebDashboard:
                     'vendor': vendor,
                     'status': 'Online',  # If we can scan ports, it's online
                     'ports': ports,
-                    'open_ports': ports
+                    'open_ports': ports,
+                    'label': self.identifier.get_device_label(ip) or None
                 }
                 self.devices.append(new_device)
+                logger.info(f"Added new device: {new_device['ip']} ({new_device['hostname']})")
                 
         except Exception as e:
             print(f"Error during port scan processing: {str(e)}")
